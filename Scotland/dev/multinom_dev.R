@@ -1,41 +1,47 @@
     #  Multinomial analysis to calculate molt start and end dates 
-    #     (and covariates effects) in SHH
-    # 3 categories of molt
-    # Random effects on camera traps
+      # in Scottish hares
+    # 5 categories of molt
+#add:    # Random effects on camera traps
+#add:   # Fixed effect snow
+#test:  # time scale week vs. two-weeks vs. day
+
+
     #  06/2017
     #  Josh Nowak
-################################################################################
+    ################################################################################
     library(R2jags)
     library(readr)
     library(purrr)
     library(dplyr)
-################################################################################
+    library(tidyr)
+    ################################################################################
     #  Set working directory
-    setwd("C:/Users/josh.nowak/Documents/GitHub/multinomial_molt_analysis/SSH_camera_traps")
-    #setwd("/Volumes/HP V100W/SSH-camera-trap-analysis-MZ_branch2")
-    #setwd("/Users/marketzimova/Documents/WORK/DISSERTATION/GitHub/multinomial_molt_analysis/SSH_camera_traps")
-    #  Path to data
-    jjn <- "C:/Temp/NH_hare_data2.csv"
-    #jjn <- "/Users/marketzimova/Documents/WORK/DISSERTATION/GitHub/data/SSH/NH_hare_data2.csv"
-    
+    setwd("/Users/marketzimova/Documents/WORK/DISSERTATION/GitHub/multinomial_molt_analysis/Scotland")
     #  Source functions
     source("code/utility_functions.R")
-
-################################################################################
-    #  Load data
-    rawd <- read_csv(
-      jjn,
-      col_types = "ccciiccccciicciccc"
-    )
+    ################################################################################
     
-################################################################################
+    #  Load data and add temporal bits
+    hare_dat <- readr::read_csv("/Users/marketzimova/Documents/WORK/DISSERTATION/GitHub/data/Scotland/Scotland molt phenology data_averages.csv") 
+    morph_data(hare_dat)
+    
+    #  Path to data
+    jjn <- "/Users/marketzimova/Documents/WORK/DISSERTATION/GitHub/data/Scotland/Scotland molt phenology data_averages.csv"
+    #  Load data
+    # rawd <- read_csv(
+    #   jjn,
+    #   col_types = "ccciiccccciicciccc"
+    # )
+    
+    ################################################################################
     #  Morph raw data
     hares <- morph_data(rawd) %>%
       filter(
-        Season == "Spring",
-        Year == 2014
+        Season == "Spring" #,
+        #Year == 2014
       )
-################################################################################
+
+    ################################################################################
     #  Call a single model step by step - mimics jags_call
     #  Set time_scale for the analysis
     #  Options are in the column names of hares, Month, Week, Julian
@@ -55,8 +61,7 @@
     #  Inits
     inits <- function(){
       list(
-        alpha = rnorm(3)#,
-        #omega= matrix(c(K*K?), ncol=ncam)) 
+        alpha = rnorm(3)
       )
     }
     
@@ -71,11 +76,10 @@
       ncam = length(unique(hares$CameraNum)),
       elev = as.numeric(hares$Elevation)
     )
-
+    
     # Parameters to monitor
     parms <- c(
-      "pp", "beta", "alpha", "sig_cam", "tau_cam", "elev_eff", "sigma", "rho",
-      "cat_mu"
+      "pp", "beta", "alpha", "sig_cam", "tau_cam", "elev_eff" #,"p_rand"
     )
 
     #  Call jags
@@ -83,16 +87,16 @@
       data = dat, 
       inits = NULL,
       parameters.to.save = parms,
-      model.file = "models/multinom_randCam_multivariatenormal.txt", 
+      model.file = "models/multinom_randCam_covs.txt", 
       n.chains = 3,
-      n.iter = 5000,
-      n.burnin = 2000,
-      n.thin = 3
+      n.iter = 1000,
+      n.burnin = 500,
+      n.thin = 3 
     )
 ################################################################################
-    #options(max.print=100) #extend maximum for print
+    options(max.print=100) #extend maximum for print
     print(out)
-    out$BUGS$mean$tau_cam
+    #out$BUGS$mean$p_rand
     
     #  Find start dates
     starts <- apply(out$BUGS$sims.list$pp[,3,], 1, function(x){ 
@@ -132,6 +136,7 @@
     hist(ends, add = T, freq = F, col = "black", border = "black")  
 
     hist(out$BUGS$sims.list$elev_eff[1,], breaks = 50)
+
 
     #  Plot with random effects
     plot(0, 0, 
@@ -193,7 +198,6 @@
     
     #Diagnostics plots
     out.mcmc <- as.mcmc(out) # Convert model output into an MCMC object
-    str(out.mcmc)
     #library(coda)
     #plot(out.mcmc)
     #out.mtx <- as.matrix(out.mcmc)
@@ -205,12 +209,9 @@
     #a <-print(out$BUGSoutput$sims.array)
     #str(out)
 
-    hist(out$BUGS$sims.list$eta[,1])
-    plot(density(out$BUGS$mean$pp[1,]))
-
     library(lattice)
-    xyplot(out.mcmc, layout=c(10,10), aspect="fill") # chains history
-    densityplot(out.mcmc, layout=c(10,10), aspect="fill") # posteriors
+    xyplot(out.mcmc, layout=c(3,3), aspect="fill") # chains history
+    densityplot(out.mcmc, layout=c(3,3), aspect="fill") # posteriors
     #autocorr.plot(out.mcmc) # autocorrelation plot
     #gelman.plot(out.mcmc) 
     
